@@ -51,7 +51,8 @@ def remap_images(ass_file: Path, target_folder: Path) -> dict:
                 arnold.AiNodeSetStr(node, "filename", new_path_str)
                 file_map[curr_path] = new_path
 
-        arnold.AiASSWrite((target_folder / ass_file.name).as_posix())
+        target_ass = ass_file.as_posix().replace(".ass", "_bundled.ass")
+        arnold.AiASSWrite(target_ass)
 
     return file_map
 
@@ -68,6 +69,8 @@ def copy_images(file_map: dict, target_folder: Path):
             del file_map[f]
 
     # Copy all.
+    # TODO: Multithreaded Copy?
+    # TODO: Check by timestamp whether it actually needs copying.
     for i, (old, new) in enumerate(file_map.items()):
         print(f"Copying file {new.name} - {i+1}/{len(file_map)}")
         shutil.copy2(old, new)
@@ -76,12 +79,20 @@ def copy_images(file_map: dict, target_folder: Path):
 # TODO: Missing mappings to be fully portable:
 #   - options > texture_searchpath
 #   - options > procedural_searchpath
-#   - driver > filename
+#   - driver > filename (can also be override by kicks -o flag)
+
+# TODO: Check for unique names since all files will end up in the same
+#       folder eventually (invert file_map dict and check length?)
+
+# TODO: Check a single *.0001.ass but remap all ass files/frames.
 
 
 if __name__ == "__main__":
-    target_folder = Path("./bundled/")
-    ass_file = Path("./test.ass")
+    target_folder = Path("./testdata/bundled/")
+    ass_file = Path("./testdata/test.ass")
 
     file_map = remap_images(ass_file, target_folder)
     copy_images(file_map, target_folder)
+
+# Kick it:
+# "C:/Program Files/Autodesk/Arnold/maya2020/bin/kick.exe" -i testdata/test_bundled.ass -o testdata/test_bundled.0001.exr
