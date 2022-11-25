@@ -3,8 +3,8 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
-# Append Arnold Python installation to PATH.
-version = "2020"
+# TODO: Remove hardcoded path, get from environment variable instead.
+version = "2022"
 sys.path.append(f"C:/Program Files/Autodesk/Arnold/maya{version}/scripts")
 import arnold
 
@@ -32,7 +32,7 @@ def universe_nodes(node_type):
     arnold.AiNodeIteratorDestroy(iter)
 
 
-def remap_images(ass_file: Path, target_folder: Path) -> dict:
+def remap_images(ass_file: Path, target_folder: Path, fetch_only: bool = False) -> dict:
     """Opens the .ass file and remaps all image paths to the target folder.
     Returns the resulting old to new path mapping for a subsequent copy task.
     """
@@ -51,16 +51,18 @@ def remap_images(ass_file: Path, target_folder: Path) -> dict:
                 curr_path = Path(arnold.AiNodeGetStr(node, "filename"))
                 new_path = target_folder / curr_path.name
                 new_path_str = new_path.as_posix().encode("ascii")
-                arnold.AiNodeSetStr(node, "filename", new_path_str)
+                if not fetch_only:
+                    arnold.AiNodeSetStr(node, "filename", new_path_str)
                 file_map[curr_path] = new_path
 
         target_ass = ass_file.as_posix().replace(".ass", "_bundled.ass")
-        arnold.AiASSWrite(target_ass)
+        if not fetch_only:
+            arnold.AiASSWrite(target_ass)
 
     return file_map
 
 
-def copy_images(file_map: dict, target_folder: Path):
+def copy_images(file_map: dict, target_folder: Path, dry_run: bool = False):
     """Preprocesses the filepath mapping and starts the copy process.
     """
     # Preprocess <udim> image files and update file_map in-place.
@@ -70,6 +72,10 @@ def copy_images(file_map: dict, target_folder: Path):
             for udim_file in f.parent.glob(search_pattern):
                 file_map[udim_file] = target_folder / udim_file.name
             del file_map[f]
+
+    if dry_run:
+        print(f"Dry run detected, NOT copying {len(file_map)} files.")
+        return
 
     # Copy all.
     # TODO: Multithreaded Copy?
@@ -88,14 +94,3 @@ def copy_images(file_map: dict, target_folder: Path):
 #       folder eventually (invert file_map dict and check length?)
 
 # TODO: Check a single *.0001.ass but remap all ass files/frames.
-
-
-if __name__ == "__main__":
-    target_folder = Path("./testdata/bundled/")
-    ass_file = Path("./testdata/test.ass")
-
-    file_map = remap_images(ass_file, target_folder)
-    copy_images(file_map, target_folder)
-
-# Kick it:
-# "C:/Program Files/Autodesk/Arnold/maya2020/bin/kick.exe" -i testdata/test_bundled.ass -o testdata/test_bundled.0001.exr
