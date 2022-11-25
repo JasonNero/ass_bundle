@@ -1,4 +1,3 @@
-import glob
 import shutil
 import sys
 from contextlib import contextmanager
@@ -12,6 +11,8 @@ import arnold
 
 @contextmanager
 def init_universe():
+    """Initialize Arnold and exit safely after use.
+    """
     try:
         arnold.AiBegin()
         yield
@@ -23,6 +24,8 @@ def init_universe():
 
 
 def universe_nodes(node_type):
+    """Iterate Arnold nodes of type `node_type`.
+    """
     iter = arnold.AiUniverseGetNodeIterator(node_type)
     while not arnold.AiNodeIteratorFinished(iter):
         yield arnold.AiNodeIteratorGetNext(iter)
@@ -60,12 +63,12 @@ def remap_images(ass_file: Path, target_folder: Path) -> dict:
 def copy_images(file_map: dict, target_folder: Path):
     """Preprocesses the filepath mapping and starts the copy process.
     """
-    # Preprocess <udim> image files.
+    # Preprocess <udim> image files and update file_map in-place.
     for f in list(file_map.keys()):
-        if "<udim>" in f.as_posix():
-            for udim_file in glob.glob(f.as_posix().replace("<udim>", "????")):
-                udim_file = Path(udim_file)
-                file_map[udim_file] = target_folder / Path(udim_file).name
+        if "<udim>" in f.name:
+            search_pattern = f.name.replace("<udim>", "????")
+            for udim_file in f.parent.glob(search_pattern):
+                file_map[udim_file] = target_folder / udim_file.name
             del file_map[f]
 
     # Copy all.
