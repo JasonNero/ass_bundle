@@ -5,7 +5,10 @@ from rich import print
 
 from . import core
 
-app = typer.Typer(help="Parse and repath ass files, bundle all required resources.")
+app = typer.Typer(
+    help="Parse and repath ass files, bundle all required resources.",
+    no_args_is_help=True,
+)
 
 
 @app.command()
@@ -17,7 +20,6 @@ def run(
     """Run via commandline."""
     file_map = core.remap_ass_files(source, target, fetch_only=dry_run)
     core.copy_images(file_map, target, dry_run=dry_run)
-    # Kick "C:/Program Files/Autodesk/Arnold/maya2020/bin/kick.exe" -i testdata/test_bundled.ass -o testdata/test_bundled.0001.exr
 
 
 @app.command()
