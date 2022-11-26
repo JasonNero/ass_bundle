@@ -2,19 +2,30 @@ import shutil
 import sys
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Optional
+
+from rich import print
 
 # TODO: Remove hardcoded path, get from environment variable instead.
-version = "2022"
-sys.path.append(f"C:/Program Files/Autodesk/Arnold/maya{version}/scripts")
+version = "2023"
+
+if sys.platform == "darwin":
+    sys.path.append(f"/Applications/Autodesk/Arnold/mtoa/{version}/scripts")
+elif sys.platform == "win32":
+    sys.path.append(f"C:/Program Files/Autodesk/Arnold/maya{version}/scripts")
+else:
+    raise OSError("Unknown or unsupported OS!")
+
 import arnold
 
 
 @contextmanager
-def init_universe():
-    """Initialize Arnold and exit safely after use.
-    """
+def init_arnold():
+    """Initialize Arnold and exit safely after use."""
     try:
         arnold.AiBegin()
+        arnold.AiMsgSetLogFileName("arnold.log")
+        arnold.AiMsgSetLogFileFlags(arnold.AI_LOG_ALL)
         yield
     except Exception as e:
         print(e)
@@ -23,49 +34,60 @@ def init_universe():
         arnold.AiEnd()
 
 
-def universe_nodes(node_type):
-    """Iterate Arnold nodes of type `node_type`.
-    """
-    iter = arnold.AiUniverseGetNodeIterator(node_type)
+def iter_universe_nodes(universe, node_type, node_class=""):
+    """Iterate Arnold nodes of type `node_type`."""
+    iter = arnold.AiUniverseGetNodeIterator(universe, node_type)
     while not arnold.AiNodeIteratorFinished(iter):
-        yield arnold.AiNodeIteratorGetNext(iter)
+        node = arnold.AiNodeIteratorGetNext(iter)
+        if not node_class or arnold.AiNodeIs(node, node_class):
+            yield node
+
     arnold.AiNodeIteratorDestroy(iter)
 
 
-def remap_images(ass_file: Path, target_folder: Path, fetch_only: bool = False) -> dict:
-    """Opens the .ass file and remaps all image paths to the target folder.
+@contextmanager
+def open_scene(ass_file: Path, save_path: Optional[Path] = None):
+    universe = arnold.AiUniverse()
+    arnold.AiASSLoad(universe, ass_file.as_posix())
+    yield universe
+    if save_path:
+        arnold.AiASSWrite(universe, save_path.as_posix())
+    arnold.AiUniverseDestroy(universe)
+
+
+def remap_ass_files(
+    ass_folder: Path, target_folder: Path, fetch_only: bool = False
+) -> dict:
+    """Open all .ass files in the directory and remaps all image paths to the target folder.
     Returns the resulting old to new path mapping for a subsequent copy task.
     """
     target_folder.mkdir(exist_ok=True)
     file_map = {}
 
-    with init_universe():
-        arnold.AiMsgSetLogFileName("bundle.log")
-        arnold.AiMsgSetLogFileFlags(arnold.AI_LOG_ALL)
-
-        arnold.AiASSLoad(ass_file.as_posix())
-
-        for node in universe_nodes(arnold.AI_NODE_SHADER):
-            if arnold.AiNodeIs(node, "image"):
-                # Remap filepath to target folder.
-                curr_path = Path(arnold.AiNodeGetStr(node, "filename"))
-                new_path = target_folder / curr_path.name
-                new_path_str = new_path.as_posix().encode("ascii")
-                if not fetch_only:
-                    arnold.AiNodeSetStr(node, "filename", new_path_str)
-                file_map[curr_path] = new_path
-
-        target_ass = ass_file.as_posix().replace(".ass", "_bundled.ass")
-        if not fetch_only:
-            arnold.AiASSWrite(target_ass)
+    with init_arnold():
+        for ass_file in ass_folder.glob("*.ass"):
+            target_ass = target_folder / ass_file.name.replace(".ass", "_bundled.ass")
+            # target_ass = ass_file.as_posix().replace(".ass", "_bundled.ass")
+            with open_scene(ass_file, save_path=target_ass) as universe:
+                for node in iter_universe_nodes(
+                    universe, arnold.AI_NODE_SHADER, "image"
+                ):
+                    # Remap filepath to target folder.
+                    curr_path = Path(arnold.AiNodeGetStr(node, "filename"))
+                    new_path = target_folder / curr_path.name
+                    if not fetch_only:
+                        # Set the filename as relative path.
+                        arnold.AiNodeSetStr(
+                            node, "filename", curr_path.name.encode("ascii")
+                        )
+                    file_map[curr_path] = new_path
 
     return file_map
 
 
 def copy_images(file_map: dict, target_folder: Path, dry_run: bool = False):
-    """Preprocesses the filepath mapping and starts the copy process.
-    """
-    # Preprocess <udim> image files and update file_map in-place.
+    """Preprocesses the filepath mapping and starts the copy process."""
+    # Remap <udim> image files and update file_map in-place.
     for f in list(file_map.keys()):
         if "<udim>" in f.name:
             search_pattern = f.name.replace("<udim>", "????")
