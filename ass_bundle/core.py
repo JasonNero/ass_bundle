@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import sys
@@ -107,6 +108,30 @@ def remap_ass_files(
                     file_map[curr_path] = new_path
 
     return file_map
+
+
+def write_pathmap(
+    file_map: dict,
+    target_folder: Path,
+    dry_run: bool = False
+):
+    filepath = target_folder / "pathmap.json"
+    print(file_map)
+
+    source_dirs = {file.parent for file in file_map.keys()}
+    dir_mapping = {str(source_dir): str(target_folder) for source_dir in source_dirs}
+
+    pathmap = {
+        "windows": dir_mapping,
+        "mac": dir_mapping,
+        "linux": dir_mapping,
+    }
+
+    print(json.dumps(pathmap))
+
+    # filepath.mkdir(parents=True, exist_ok=True)
+    with filepath.open(mode="w") as f:
+        json.dump(pathmap, f, indent=4)
 
 
 def copy_images(

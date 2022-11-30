@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 
 import typer
@@ -11,17 +12,30 @@ app = typer.Typer(
 )
 
 
-@app.command()
+class RemapMode(str, Enum):
+    pathmap = "pathmap"
+    ass = "ass"
+
+
+@app.command(no_args_is_help=True)
 def run(
     source: Path = typer.Argument(..., help="Source directory of the ass files."),
     target: Path = typer.Argument(..., help="Target directory for all resources."),
-    remap_only: bool = typer.Option(False, "--remap-only", help="Skips the copy process, only remaps the paths."),
+    remap_mode: RemapMode = typer.Argument(RemapMode.ass, help="The remap mode."),
+    copy: bool = typer.Option(True, help="Do the copy process."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Don't write any files."),
 ):
     """Run via commandline."""
-    file_map = core.remap_ass_files(source, target, fetch_only=dry_run)
-    if not remap_only:
+    file_map = core.remap_ass_files(
+        source, target, 
+        fetch_only=dry_run or remap_mode == RemapMode.ass
+    )
+
+    if copy:
         core.copy_images(file_map, target, dry_run=dry_run)
+
+    if remap_mode == RemapMode.pathmap:
+        core.write_pathmap(file_map, target)
 
 
 @app.command()
