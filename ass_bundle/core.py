@@ -15,9 +15,12 @@ version = "2023"
 
 if sys.platform == "darwin":
     sys.path.append(f"/Applications/Autodesk/Arnold/mtoa/{version}/scripts")
+    os.environ["PATH"] += f"/Applications/Autodesk/Arnold/mtoa/{version}/bin"
+    KICK = f"/Applications/Autodesk/Arnold/mtoa/{version}/bin/kick"
 elif sys.platform == "win32":
     sys.path.append(f"C:/Program Files/Autodesk/Arnold/maya{version}/scripts")
-    os.environ["PATH"] += f"C:/Program Files/Autodesk/Arnold/maya{version}/bin"  # Make sure the `ai.dll` file is found.
+    os.environ["PATH"] += f"C:/Program Files/Autodesk/Arnold/maya{version}/bin"
+    KICK = f"C:/Program Files/Autodesk/Arnold/maya{version}/bin/kick"
 else:
     raise OSError("Unknown or unsupported OS!")
 
@@ -113,14 +116,15 @@ def remap_ass_files(
 
 def write_pathmap(
     file_map: dict,
-    source_folder: Path,
     target_folder: Path,
 ):
     """Writes a pathmap.json file that can be used with Arnold by setting the filepath in the
     `ARNOLD_PATHMAP` environment variable.
-    """
-    filepath = target_folder / "pathmap.json"
 
+    Args:
+        file_map (dict): A mapping of source texture to target texture path.
+        target_folder (Path): Folder where to save the `pathmap.json` file.
+    """
     source_dirs = {file.parent for file in file_map.keys()}
     dir_mapping = {source_dir.as_posix(): "." for source_dir in source_dirs}
 
@@ -130,6 +134,7 @@ def write_pathmap(
         "linux": dir_mapping,
     }
 
+    filepath = target_folder / "pathmap.json"
     with filepath.open(mode="w") as f:
         json.dump(pathmap, f, indent=4)
 
@@ -166,6 +171,12 @@ def copy_images(
 
 
 def kick(source_folder: Path, use_pathmap: bool):
+    """Run kick with the correct environment variables and working dir.
+
+    Args:
+        source_folder (Path): Directory of the ass files to render.
+        use_pathmap (bool): Whether to use a `pathmap.json` or render plainly.
+    """
     if use_pathmap:
         print("Setting environment variables for pathmap rendering ...")
         pathmap = source_folder / "pathmap.json"
@@ -176,7 +187,7 @@ def kick(source_folder: Path, use_pathmap: bool):
     ass_files = list(source_folder.glob("*.ass"))
     for ass_file in track(ass_files, f"Processing {len(ass_files)} ass files ..."):
         cmd = [
-            "kick",
+            KICK,
             "-i", ass_file.resolve().as_posix(),
             "-r", "320", "240",
             "-as", "1",
@@ -186,7 +197,7 @@ def kick(source_folder: Path, use_pathmap: bool):
         ]
         print(" ".join(cmd))
 
-        # NOTE: Kick needs to run in the directory of the ass files to be able to 
+        # NOTE: Kick needs to run in the directory of the ass files to be able to
         # resolve the relative path in the pathmap or the ass file itself.
         subprocess.Popen(cmd, env=os.environ, cwd=ass_file.parent.as_posix()).wait()
 

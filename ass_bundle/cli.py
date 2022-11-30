@@ -21,7 +21,7 @@ class RemapMode(str, Enum):
 def bundle(
     source: Path = typer.Argument(..., help="Source directory of the ass files."),
     target: Path = typer.Argument(..., help="Target directory for all resources."),
-    remap_mode: RemapMode = typer.Argument(RemapMode.ass, help="The remap mode."),
+    remap_mode: RemapMode = typer.Option(RemapMode.ass, help="The remap mode."),
     copy: bool = typer.Option(True, help="Do the copy process."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Don't write any files."),
 ):
@@ -35,18 +35,18 @@ def bundle(
         core.copy_images(file_map, target, dry_run=dry_run)
 
     if remap_mode == RemapMode.pathmap:
-        core.write_pathmap(file_map, source, target)
+        core.write_pathmap(file_map, target)
 
 
 @app.command()
 def kick_compare(
     source: Path = typer.Argument(..., help="Source directory of the ass files."),
-    use_pathmap: bool = typer.Argument(..., help="Whether to use the pathmap for remapping")
+    remap_mode: RemapMode = typer.Option(RemapMode.ass, help="The remap mode."),
     # number: int = typer.Argument(..., help="Number of files to test/compare.")
 ):
     """Render images of original and remapped ass file, compare the results and highlight the differences.
     """
-    core.kick(source, use_pathmap)
+    core.kick(source, use_pathmap=(remap_mode == RemapMode.pathmap))
     # core.compare()
 
 
