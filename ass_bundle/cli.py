@@ -1,6 +1,5 @@
 from enum import Enum
 from pathlib import Path
-import subprocess
 
 import typer
 from rich import print
@@ -29,34 +28,26 @@ def bundle(
     """Run via commandline."""
     file_map = core.remap_ass_files(
         source, target, 
-        fetch_only=dry_run or remap_mode == RemapMode.ass
+        fetch_only=dry_run or (remap_mode == RemapMode.pathmap)
     )
 
     if copy:
         core.copy_images(file_map, target, dry_run=dry_run)
 
     if remap_mode == RemapMode.pathmap:
-        core.write_pathmap(file_map, target)
+        core.write_pathmap(file_map, source, target)
 
 
 @app.command()
 def kick_compare(
     source: Path = typer.Argument(..., help="Source directory of the ass files."),
-    target: Path = typer.Argument(..., help="Target directory for all resources."),
-    number: int = typer.Argument(..., help="Number of files to test/compare.")
+    use_pathmap: bool = typer.Argument(..., help="Whether to use the pathmap for remapping")
+    # number: int = typer.Argument(..., help="Number of files to test/compare.")
 ):
     """Render images of original and remapped ass file, compare the results and highlight the differences.
     """
-    return
-    version = "2023"
-    cmd = [
-        f"/Applications/Autodesk/Arnold/mtoa/{version}/bin/kick",
-        f"-i {first_kick}",
-        "-r 640 480",
-        "-as 4",
-        f"-o {output_image}",
-    ]
-    subprocess.Popen(cmd)
+    core.kick(source, use_pathmap)
+    # core.compare()
 
 
 @app.command()

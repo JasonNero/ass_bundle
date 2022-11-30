@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import shutil
 import sys
 from contextlib import contextmanager
@@ -103,7 +104,7 @@ def remap_ass_files(
                     if not fetch_only:
                         # Set the filename as relative path.
                         arnold.AiNodeSetStr(
-                            node, "filename", curr_path.name.encode("ascii")
+                            node, "filename", ("./" + curr_path.name).encode("ascii")
                         )
                     file_map[curr_path] = new_path
 
@@ -112,14 +113,16 @@ def remap_ass_files(
 
 def write_pathmap(
     file_map: dict,
+    source_folder: Path,
     target_folder: Path,
-    dry_run: bool = False
 ):
+    """Writes a pathmap.json file that can be used with Arnold by setting the filepath in the
+    `ARNOLD_PATHMAP` environment variable.
+    """
     filepath = target_folder / "pathmap.json"
-    print(file_map)
 
     source_dirs = {file.parent for file in file_map.keys()}
-    dir_mapping = {str(source_dir): str(target_folder) for source_dir in source_dirs}
+    dir_mapping = {source_dir.as_posix(): "." for source_dir in source_dirs}
 
     pathmap = {
         "windows": dir_mapping,
@@ -127,9 +130,6 @@ def write_pathmap(
         "linux": dir_mapping,
     }
 
-    print(json.dumps(pathmap))
-
-    # filepath.mkdir(parents=True, exist_ok=True)
     with filepath.open(mode="w") as f:
         json.dump(pathmap, f, indent=4)
 
@@ -164,6 +164,31 @@ def copy_images(
     for (old, new) in track(file_map.items(), f"Copying {len(file_map)} files ..."):
         shutil.copy2(old, new)
 
+
+def kick(source_folder: Path, use_pathmap: bool):
+    if use_pathmap:
+        print("Setting environment variables for pathmap rendering ...")
+        pathmap = source_folder / "pathmap.json"
+        os.environ["ARNOLD_PATHMAP"] = pathmap.resolve().as_posix()
+        os.environ["BUNDLE_ROOT"] = source_folder.resolve().as_posix()
+        print(source_folder.resolve().as_posix())
+
+    ass_files = list(source_folder.glob("*.ass"))
+    for ass_file in track(ass_files, f"Processing {len(ass_files)} ass files ..."):
+        cmd = [
+            "kick",
+            "-i", ass_file.resolve().as_posix(),
+            "-r", "320", "240",
+            "-as", "1",
+            "-o", ass_file.resolve().with_suffix(".exr").as_posix(),
+            "-logfile", (source_folder / "arnold.log").resolve().as_posix(),
+            # "-dw", "-dp",
+        ]
+        print(" ".join(cmd))
+
+        # NOTE: Kick needs to run in the directory of the ass files to be able to 
+        # resolve the relative path in the pathmap or the ass file itself.
+        subprocess.Popen(cmd, env=os.environ, cwd=ass_file.parent.as_posix()).wait()
 
 # TODO: Missing mappings to be fully portable:
 #   - options > texture_searchpath
