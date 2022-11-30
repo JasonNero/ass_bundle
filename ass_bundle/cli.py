@@ -1,5 +1,6 @@
 from enum import Enum
 from pathlib import Path
+import subprocess
 
 import typer
 from rich import print
@@ -18,7 +19,7 @@ class RemapMode(str, Enum):
 
 
 @app.command(no_args_is_help=True)
-def run(
+def bundle(
     source: Path = typer.Argument(..., help="Source directory of the ass files."),
     target: Path = typer.Argument(..., help="Target directory for all resources."),
     remap_mode: RemapMode = typer.Argument(RemapMode.ass, help="The remap mode."),
@@ -39,6 +40,26 @@ def run(
 
 
 @app.command()
+def kick_compare(
+    source: Path = typer.Argument(..., help="Source directory of the ass files."),
+    target: Path = typer.Argument(..., help="Target directory for all resources."),
+    number: int = typer.Argument(..., help="Number of files to test/compare.")
+):
+    """Render images of original and remapped ass file, compare the results and highlight the differences.
+    """
+    return
+    version = "2023"
+    cmd = [
+        f"/Applications/Autodesk/Arnold/mtoa/{version}/bin/kick",
+        f"-i {first_kick}",
+        "-r 640 480",
+        "-as 4",
+        f"-o {output_image}",
+    ]
+    subprocess.Popen(cmd)
+
+
+@app.command()
 def gui():
-    """Start the GUI."""
+    """Open the graphical user interface."""
     print("[bold red]Not yet implemented ...[/bold red]")
