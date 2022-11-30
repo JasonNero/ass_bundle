@@ -15,7 +15,7 @@ if sys.platform == "darwin":
     sys.path.append(f"/Applications/Autodesk/Arnold/mtoa/{version}/scripts")
 elif sys.platform == "win32":
     sys.path.append(f"C:/Program Files/Autodesk/Arnold/maya{version}/scripts")
-    os.environ += f"C:/Program Files/Autodesk/Arnold/maya{version}/bin"  # Make sure the `ai.dll` file is found.
+    os.environ["PATH"] += f"C:/Program Files/Autodesk/Arnold/maya{version}/bin"  # Make sure the `ai.dll` file is found.
 else:
     raise OSError("Unknown or unsupported OS!")
 
